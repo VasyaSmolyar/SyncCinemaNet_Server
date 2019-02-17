@@ -1,3 +1,10 @@
+/**
+ * /file 
+ * /brief Header file with structures and function
+ * declarations for working with SDP
+ * 
+ * 
+ */
 #ifndef SDP
   #define SDP
 
@@ -10,6 +17,7 @@
   struct SdpContent{
     /*
       Version of SDP(now always 0)
+      v=0
       Or if not 0, error.
       All errors codes defined at enum 
       https://tools.ietf.org/html/rfc4566#section-5.1
@@ -18,11 +26,10 @@
 
     /*
       Origin ("o=").
-      o=<username> <sess-id> <sess-version> <nettype> <addrtype>
-        <unicast-address>
+      o=<username> <sess-id> <sess-version> <nettype> <addrtype> <unicast-address>
       https://tools.ietf.org/html/rfc4566#section-5.2
     */
-    union{
+    struct {
       char *username;
       int sess_id;
       int sess_version;
@@ -31,7 +38,7 @@
       char *unicast_address;
     }origin;
 
-    union{
+    struct {
       /*
         Session name ("s=").
         s=<session name>
@@ -110,7 +117,7 @@
       char *bandwidth;
     } *bandwidths;
 
-    int bandwithsCount;
+    int bandwidthsCount;
 
     /*
       Timing ("t=")
@@ -137,7 +144,7 @@
       k=<method>:<encryption key>
       https://tools.ietf.org/html/rfc4566#section-5.12
     */
-    union SdpEncryption{
+    struct SdpEncryption{
       char *method;
       char *key;
     } encryption;
@@ -169,13 +176,91 @@
       char *title;
       struct SdpBandwidth *bandwidths;
       int bandwidthsCount;
-      union SdpEncryption encryption;
+      struct SdpEncryption encryption;
       struct SdpConnectionData *connections;
       int connectionsCount;
+      struct SdpAttribute *attributes;
+      int attributesCount;
     } *mediums;
 
     int mediumsCount;
   };
+
+  //SDP MANAGE FUNCTIONS(make doxygen module)
+
+  int SdpContent_init(struct SdpContent *sdp);
+
+  int SdpContent_setVersion(struct SdpContent *sdp,int version);
+
+  int SdpContent_setOrigin(struct SdpContent *sdp,
+                           char *username,
+                           int sess_id,
+                           int sess_version,
+                           char *nettype,
+                           char *addrtype,
+                           char *unicast_address);
+
+  int SdpContent_setSession(struct SdpContent *sdp,
+                            char *name,
+                            char *info);
+
+  int SdpContent_setUri(struct SdpContent *sdp,char *URI);
+
+  int SdpContent_addConnection(struct SdpContent *sdp,
+                               char *nettype,
+                               char *addrtype,
+                               char *address);
+
+  int SdpContent_addBandwidth(struct SdpContent *sdp,
+                              char *bwtype,
+                              char *bandwidth);
+
+  int SdpContent_setEncryption_wKey(struct SdpContent *sdp,
+                                    char *method,
+                                    char *key);
+  int SdpContent_setEncryption(struct SdpContent *sdp,char *method);
+
+  int SdpContent_addAtribute_wValue(struct SdpContent *sdp,
+                                    char *attribute,
+                                    char *value);
+  int SdpContent_addAtribute(struct SdpContent *sdp,char *attribute);
+
+  int SdpContent_addMedia(struct SdpContent *sdp,
+                          char *type,
+                          char *port,
+                          char *proto,
+                          char *format);
+  
+
+  int SdpContent_Media_setTitle(struct SdpContent *sdp,
+                                int mediaID,
+                                char *title);
+
+  int SdpContent_Media_addBandwidth(struct SdpContent *sdp,
+                                    int mediaID,
+                                    char *bwtype,
+                                    char *bandwith);
+
+  int SdpContent_Media_setEncryption_wKey(struct SdpContent *sdp,
+                                          int mediaID,
+                                          char *method,
+                                          char *key);
+  int SdpContent_Media_setEncryption(struct SdpContent *sdp,
+                                     int mediaID,
+                                     char *method);
+
+  int SdpContent_Media_addAtribute_wValue(struct SdpContent *sdp,
+                                          int mediaID,
+                                          char *attribute,
+                                          char *value);
+  int SdpContent_Media_addAtribute(struct SdpContent *sdp,
+                                   int mediaID,
+                                   char *attribute);
+
+
+  //SDP MANAGE FUNCTIONS END
+
+  //SDP PARSE FUNCTIONS(make doxygen module)
 
   /*
     Parse SDP string into SdpContent struct
@@ -189,5 +274,6 @@
   */
   int sdpstr(char *str,struct SdpContent *sdp);
 
+  //SDP PARSE FUNCTIONS END
 
 #endif 
