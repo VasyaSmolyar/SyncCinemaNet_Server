@@ -13,7 +13,7 @@ extern int errno;
 
 int rtsp_server(int fd) {
   enum RtspResults res;
-  char *buf;
+  char *buf, *tok;
   buf=(char *) malloc(sizeof(char)*BUF_SIZE);
   int requestSize = read(fd,buf,BUF_SIZE);
   RtspMessage msg;
@@ -28,7 +28,6 @@ int rtsp_server(int fd) {
     //strcpy(wbuf,"RTSP/1.0 400 Bad Request\0");
   }else{
     //parse
-    char *tok;
     tok=strtok(buf," \n");//Method
     if (tok == NULL) {
       msg.rtspVerMajor = 1;
@@ -68,9 +67,29 @@ int rtsp_server(int fd) {
       res = RTSP_RESULT_CLIENT_ERROR;
       return rtsp_answer(&msg, res, fd);
     }
-    strtok(NULL," /");//пропускаем RTSP
-    msg.rtspVerMajor=atoi(strtok(NULL,"/."));
-    msg.rtspVerMinor=atoi(strtok(NULL,". \n"));
+    tok = strtok(NULL," /");//пропускаем RTSP
+    if (tok == NULL || strcmp(tok,"RTSP")) {
+      msg.rtspVerMajor = 1;
+      msg.rtspVerMinor = 0;
+      res = RTSP_RESULT_CLIENT_ERROR;
+      return rtsp_answer(&msg, res, fd);
+    }
+    tok = strtok(NULL,"/.");
+    if (tok == NULL) {
+      msg.rtspVerMajor = 1;
+      msg.rtspVerMinor = 0;
+      res = RTSP_RESULT_CLIENT_ERROR;
+      return rtsp_answer(&msg, res, fd);
+    }
+    msg.rtspVerMajor=atoi(tok);
+    tok = strtok(NULL,". \n");
+    if (tok == NULL) {
+      msg.rtspVerMajor = 1;
+      msg.rtspVerMinor = 0;
+      res = RTSP_RESULT_CLIENT_ERROR;
+      return rtsp_answer(&msg, res, fd);
+    }
+    msg.rtspVerMinor=atoi(tok);
     msg.cseq=0;
     msg.fieldsCount=0;
 
