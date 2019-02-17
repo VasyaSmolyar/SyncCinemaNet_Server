@@ -1,33 +1,41 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <errno.h>
 
 #include "rtsp.h"
-#include "interfaces/errors.h"
+#include "../interfaces/errors.h"
 
 #define BUF_SIZE 1024
 
-int rtsp_server(int fd) {
-  die_err(SE_DEV);
-  return -1;
+extern int errno;
 
-  /*
-  Здесь скоро будет нормальный обработчик
-  */
-  char *buf, *wbuf;
+int rtsp_server(int fd) {
+  enum RtspResults res;
+  char *buf;
   buf=(char *) malloc(sizeof(char)*BUF_SIZE);
-  wbuf=(char *) malloc(sizeof(char)*BUF_SIZE);
   int requestSize = read(fd,buf,BUF_SIZE);
   RtspMessage msg;
 
   if(requestSize == -1) {
     return 1;
   }else if(requestSize == 0){
-    strcpy(wbuf,"RTSP/1.0 400 Bad Request\0");
+    msg.rtspVerMajor = 1;
+    msg.rtspVerMinor = 0;
+    res = RTSP_RESULT_CLIENT_ERROR;
+    return rtsp_answer(&msg, res, fd);
+    //strcpy(wbuf,"RTSP/1.0 400 Bad Request\0");
   }else{
     //parse
     char *tok;
     tok=strtok(buf," \n");//Method
+    if (tok == NULL) {
+      msg.rtspVerMajor = 1;
+      msg.rtspVerMinor = 0;
+      res = RTSP_RESULT_CLIENT_ERROR;
+      return rtsp_answer(&msg, res, fd);
+    }
     if(!strcmp(tok,"OPTIONS")){
       msg.method=RTSP_METHOD_OPTIONS;
     }else if(!strcmp(tok,"DESCRIBE")){
@@ -54,6 +62,12 @@ int rtsp_server(int fd) {
       msg.method=RTSP_METHOD_ERROR;
     }
     msg.URI=strtok(NULL," \n");
+    if(msg.URI == NULL) {
+      msg.rtspVerMajor = 1;
+      msg.rtspVerMinor = 0;
+      res = RTSP_RESULT_CLIENT_ERROR;
+      return rtsp_answer(&msg, res, fd);
+    }
     strtok(NULL," /");//пропускаем RTSP
     msg.rtspVerMajor=atoi(strtok(NULL,"/."));
     msg.rtspVerMinor=atoi(strtok(NULL,". \n"));
@@ -71,29 +85,73 @@ int rtsp_server(int fd) {
         msg.fields[msg.fieldsCount-1].value=(char *) malloc(sizeof(char)*strlen(tok));
         strcpy(msg.fields[msg.fieldsCount-1].value,tok);
       }else{
-        strcpy(wbuf,"RSTP/1.0 451 Parameter Not Understood");
         free(buf);
         tok=NULL;
-        goto Write;
+        //strcpy(wbuf,"RSTP/1.0 451 Parameter Not Understood");
+        //goto Write;
+        res = RTSP_RESULT_PARAM_ERROR;
+        return rtsp_answer(&msg, res, fd);
       }
       //проверка на Content-Length
       if(!strcmp(msg.fields[msg.fieldsCount-1].header,"Content-Length")){
         // +2 для безопасности, для \0
         msg.content=strtok(NULL,"\0");
         free(buf);
-        tok=NULL;
-        strcpy(wbuf,"DONE");
-        goto Write;
+        //tok=NULL;
+        //strcpy(wbuf,"DONE");
+        //goto Write;
       }
       tok=strtok(NULL,": \n");//cтрока
     }
 
   }
-  
-Write:
+  /*
   requestSize = write(fd,wbuf,strlen(wbuf));
   if(requestSize == -1) {
     return -1;
   }
   return 0;
+  */
+  if(msg.method == RTSP_METHOD_ERROR) {
+    res = RTSP_RESULT_CLIENT_ERROR;
+  } else {
+    res = RTSP_RESULT_OK;
+  }
+  return rtsp_answer(&msg, res, fd);
+}
+
+int rtsp_answer(RtspMessage *rtsp, enum RtspResults res, int fd) {
+  /*
+  TODO: Добавить посыл fields
+  */
+  char buf[BUF_SIZE];
+  char *point = buf, *title;
+  RtspAnswer ans;
+  int ret;
+  ans.code = res;
+  ans.rtspVerMajor = rtsp->rtspVerMajor;
+  ans.rtspVerMinor = rtsp->rtspVerMinor;
+  sprintf(point,"RTSP/%d.%d ", ans.rtspVerMajor, ans.rtspVerMinor);
+  point += strlen(buf);
+  switch(ans.code) {
+    case RTSP_RESULT_OK:
+      title = "200 OK\n";
+      break;
+    case RTSP_RESULT_PARAM_ERROR:
+      title = "451 Parameter Not Understood\n";
+      break;
+    default:
+      /*
+      Не обрабатываем RTSP_RESULT_CLIENT_ERROR отдельно, так как
+      ошибка 400 обозначает все остальные случаи
+      */
+      title = "400 Bad Request\n";
+  }
+  strcpy(point, title);
+  ret = write(fd,buf,strlen(buf));
+  if(ret == -1) {
+    perror("write");
+    die_pos_err(errno);
+  }
+  return strlen(buf);
 }
