@@ -76,7 +76,7 @@ int tcp_listen(int* efd, int (*callback)(int)) {
     if(ret > 0) {
       fd = evs[0].data.fd;
       ret = (*callback)(fd);
-      if(ret != 0) {
+      if(ret < 0) {
         die_err(ret);
       }
     } else if(ret == -1) {
