@@ -46,5 +46,6 @@
 
   int rtsp_server(int fd);
   int rtsp_answer(RtspMessage *rtsp, enum RtspResults res, int fd);
+  int rtsp_fields(RtspMessage *rtsp, RtspAnswer *ans);
 
 #endif

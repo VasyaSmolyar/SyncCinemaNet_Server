@@ -140,13 +140,10 @@ int rtsp_server(int fd) {
 }
 
 int rtsp_answer(RtspMessage *rtsp, enum RtspResults res, int fd) {
-  /*
-  TODO: Добавить посыл fields
-  */
   char buf[BUF_SIZE];
   char *point = buf, *title;
   RtspAnswer ans;
-  int ret;
+  int ret, i, fst = 0;
   ans.code = res;
   ans.rtspVerMajor = rtsp->rtspVerMajor;
   ans.rtspVerMinor = rtsp->rtspVerMinor;
@@ -155,6 +152,8 @@ int rtsp_answer(RtspMessage *rtsp, enum RtspResults res, int fd) {
   switch(ans.code) {
     case RTSP_RESULT_OK:
       title = "200 OK\n";
+      rtsp_fields(rtsp, &ans);
+      fst = 1;
       break;
     case RTSP_RESULT_PARAM_ERROR:
       title = "451 Parameter Not Understood\n";
@@ -167,10 +166,37 @@ int rtsp_answer(RtspMessage *rtsp, enum RtspResults res, int fd) {
       title = "400 Bad Request\n";
   }
   strcpy(point, title);
+  point = buf + strlen(buf);
+  if(fst && rtsp->fieldsCount) {
+    for(i = 0;i < rtsp->fieldsCount;i++) {
+      sprintf(point,"\n%s : %s", ans.fields[i].header, ans.fields[i].value);
+      point = buf + strlen(buf);
+    }
+  }
   ret = write(fd,buf,strlen(buf));
   if(ret == -1) {
     perror("write");
     die_pos_err(errno);
   }
+  if(fst && rtsp->fieldsCount) {
+    free(rtsp->fields);
+    free(ans.fields);
+  }
   return strlen(buf);
+}
+
+int rtsp_fields(RtspMessage *rtsp, RtspAnswer *ans) {
+  int i;
+  ans->fieldsCount = 0;
+  ans->fields = malloc(sizeof(struct Field));
+  for(i = 0;i < rtsp->fieldsCount;i++) {
+    /*
+    TODO: Не просто копировать из запроса, а обрабатывать
+    */
+    ans->fieldsCount++;
+    ans->fields[i].header = rtsp->fields[i].header;
+    ans->fields[i].value = rtsp->fields[i].value;
+    ans->fields = realloc(ans->fields,sizeof(struct Field) * ans->fieldsCount);
+  }
+  return i;
 }
